@@ -8,6 +8,6 @@
 #include <string.h>
 
 int main(){
-
+  printf("TEST");
 return 0;
 }
