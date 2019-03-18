@@ -7,8 +7,10 @@
 #include <sys/wait.h>
 #include <string.h>
 
+#define BUFFERSIZE 64
+
 void shellLoop();
-char *readString();
+void readString(char *string);
 char **commandLineParser(char *string);
 void runCommand();
 
@@ -27,30 +29,62 @@ void shellLoop()
   do
   {
     printf("~ ");
-    string = readString();
+    readString(string);
+
+    printf("%s\n", string);
 
     if(strcmp(string, "exit") == 0)
     {
       exit(0);
     }
 
-    commands = commandLinePrser(string);
+    commands = commandLineParser(string);
+
+    int i;
+    for(i = 0; commands[i] != NULL; i++)
+    {
+      printf("%s\n", commands[i]);
+    }
+
+    free(string);
+
+  } while(1);
 
 
-  } while();
+  free(commands);
 }
 
-char *readString()
+void readString(char *string)
 {
+  char temp[BUFFERSIZE];
 
+  fgets(temp, BUFFERSIZE, stdin);
+
+  string = malloc(sizeof(char) * strlen(temp));
+
+  strcpy(string, temp);
 }
 
 char **commandLineParser(char *string)
 {
+  char **tokens = malloc(BUFFERSIZE * sizeof(char*));
+  char * temp;
+  int i;
 
+  temp = strtok (string, " ");
+
+  for(i = 0; temp != NULL; i++)
+  {
+    tokens[i] = temp;
+
+    temp = strtok (NULL, " ");
+  }
+  tokens[i] = NULL;
+
+  return tokens;
 }
 
 void runCommand()
 {
-  
+
 }
