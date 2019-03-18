@@ -9,10 +9,24 @@
 
 #define BUFFERSIZE 64
 
+enum inOut{IN, OUT, BOTH, NEITHER}
+
+typedef struct command_struct
+{
+  char **commands;
+  int pipeIn[2];
+  int pipeOut[2];
+  char *fileDest;
+  char *fileSource;
+  //if any of these are NULL, they are unused
+} Command;
+
 void shellLoop();
-void readString(char *string);
+char *readString();
 char **commandLineParser(char *string);
-void runCommand();
+void runCommand(char **commands);
+void fileRedirect(char *file, int inOut);
+Command *makeStructs(char **commands);
 
 int main()
 {
@@ -29,9 +43,7 @@ void shellLoop()
   do
   {
     printf("~ ");
-    readString(string);
-
-    printf("%s\n", string);
+    string = readString();
 
     if(strcmp(string, "exit") == 0)
     {
@@ -40,11 +52,11 @@ void shellLoop()
 
     commands = commandLineParser(string);
 
-    int i;
+    /*int i;
     for(i = 0; commands[i] != NULL; i++)
     {
       printf("%s\n", commands[i]);
-    }
+    }*/
 
     free(string);
 
@@ -54,15 +66,21 @@ void shellLoop()
   free(commands);
 }
 
-void readString(char *string)
+char *readString()
 {
   char temp[BUFFERSIZE];
+  char *string;
+  int i;
 
   fgets(temp, BUFFERSIZE, stdin);
 
-  string = malloc(sizeof(char) * strlen(temp));
+  temp[strlen(temp) - 1] = '\0';
+
+  string = malloc( (sizeof(char) * strlen(temp)) + 1);
 
   strcpy(string, temp);
+
+  return string;
 }
 
 char **commandLineParser(char *string)
@@ -71,20 +89,48 @@ char **commandLineParser(char *string)
   char * temp;
   int i;
 
-  temp = strtok (string, " ");
+  temp = strtok(string, " ");
 
   for(i = 0; temp != NULL; i++)
   {
     tokens[i] = temp;
 
-    temp = strtok (NULL, " ");
+    temp = strtok(NULL, " ");
   }
   tokens[i] = NULL;
 
   return tokens;
 }
 
-void runCommand()
+void runCommand(char **commands)
 {
+  if( (pid = fork()) < 0)
+  {
+    perror("Forking error\n");
+  }
+  else if(pid == 0)
+  { //CHILD PROCESS
 
+  }
+  else
+  { //PARENT PROCESS
+
+  }
+}
+
+void fileRedirect(char *file, bool inOut)
+{
+  if(inOut == IN)
+  {
+    freopen(file, "r", stdin);
+  }
+  else
+  {
+    freopen(file, "w", stdout);
+  }
+}
+
+Command *makeStructs(char **commands)
+{
+  
 }
