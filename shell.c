@@ -1,6 +1,7 @@
 /*shell project
   Kai Pisila
   Niall Healy*/
+
   #include <unistd.h>
   #include <stdio.h>
   #include <sys/types.h>
@@ -9,7 +10,7 @@
   #include <fcntl.h>
   #include <sys/wait.h>
   #include <string.h>
-  #include <bool.h>
+  #include <stdbool.h>
 
   #define BUFFERSIZE 64
 
@@ -31,6 +32,7 @@
   void shellLoop();
   char *readString();
   char **commandLineParser(char *string);
+  void freeCommands(char ** cmds);
   void runCommand(Command command); ///////What about running all commands?
   void fileRedirect(char *file, int inOut);
   Command *makeStructs(char **commands);
@@ -50,27 +52,36 @@
   {
     char *string;
     char **commands;
+    Command *commandStructs;
 
     do
     {
       printf("~ ");
       string = readString();
-
+      printf("string read: %s\n", string);
       if(strcmp(string, "exit") == 0)
       {
         exit(0);
       }
 
       commands = commandLineParser(string);
-
-      /*int i;
+      printf("parser done\n");
+      free(string);
+      int i;
       for(i = 0; commands[i] != NULL; i++)
       {
         printf("%s\n", commands[i]);
-      }*/
+      }
 
-      free(string);
+      commandStructs = makeStructs(commands);
+      printf("structs made\n");
+      freeCommands(commands);
+      printf("%s\n", commandStructs[1].args[0]);
+      for(i = 0; commandStructs[i].args != NULL; i++){
+        printf("%s\n", commandStructs[i].args[0]);
+      }
 
+      freeStructs(commandStructs);
     } while(1);
 
 
@@ -83,7 +94,6 @@
   {
     char temp[BUFFERSIZE];
     char *string;
-    int i;
 
     fgets(temp, BUFFERSIZE, stdin);
 
@@ -105,18 +115,28 @@
     int i;
 
     temp = strtok(string, " ");
-
+    printf("token 1: %s\n", temp);
     for(i = 0; temp != NULL; i++)
     {
-      tokens[i] = temp;
-
+      tokens[i] = malloc(sizeof(char) * (strlen(temp) + 1));
+      strcpy(tokens[i], temp);
       temp = strtok(NULL, " ");
     }
     tokens[i] = NULL;
-
+    printf("finished tokenizing\n");
     return tokens;
   }
 
+  ////////////////////////////////////////////////////////////////////////
+
+void freeCommands(char ** cmds){
+  printf("freeing commands\n");
+  int i;
+  for(i = 0; cmds[i] != NULL; i++){
+    free(cmds[i]);
+  }
+  free(cmds);
+}
 ///////////////////////////////////////////////////////////////////////////
 
   void runCommand(Command command)
@@ -197,47 +217,65 @@
   } Command;*/
   Command *makeStructs(char **commands)
   {
-    int i;//to iterate through commands array
+    printf("begin making structs\n");
+    int i;    //to iterate through commands array
     int j = 0;//number of strings in args array
     int k = 0;//number of structs in commandStructs array
-    char **args;
-    Command *commandStructs = malloc(sizeof(Command));
-    Command *temp;
+    //char **args = malloc(BUFFERSIZE * sizeof(char*));
+    Command *commandStructs = malloc(sizeof(Command) * BUFFERSIZE);
+    //Command *temp;
     for(i = 0; 1 ; i++){
-      if(strcmp(commands[i], "|") == 0){
-        temp = realloc(commandStructs, sizeof(Command) * (k + 2));
-        commandStructs = temp;
-        if(pipe(commandStructs[k]->pipeOut) < 0){
-          printf("pipe1 failed\n");
-        }else{
-          memcpy(commandStructs[k + 1]->pipeIn, commandStructs[k]->pipeOut, 2 * sizeof(int));
-        }
-        k++;
-
-      }else if(strcmp(commands[i], NULL) == 0){
+      printf("struct loop: %d working on %s\n", i, commands[i]);
+      if(!commands[i]){
+        printf("Hit exit case\n");
+        commandStructs[k + 1].args = NULL;
         return commandStructs;
 
+      }else if(strcmp(commands[i], "|") == 0){
+        printf("%s\n", commandStructs[k].args[0] );//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        if(pipe(commandStructs[k].pipeOut) < 0){
+          printf("pipe failed\n");
+        }else{
+          memcpy(commandStructs[k + 1].pipeIn, commandStructs[k].pipeOut, 2 * sizeof(int));
+        }
+          k++;
+
       }else if(strcmp(commands[i], ">") == 0){
-        commandStructs[k]->fileDest = malloc(sizeof(char) * (strlen(commands[i + 1]) + 1));
-        strcpy(commandStructs[k]->fileDest, commands[i + 1]);
+        commandStructs[k].fileDest = malloc(sizeof(char) * (strlen(commands[i + 1]) + 1));
+        strcpy(commandStructs[k].fileDest, commands[i + 1]);
         i++;
 
       }else if(strcmp(commands[i], "<") == 0){
-        commandStructs[k]->fileSource = malloc(sizeof(char) * (strlen(commands[i + 1]) + 1);
-        strcpy(commandStructs[k]->fileSource, commands[i + 1]);
+        commandStructs[k].fileSource = malloc(sizeof(char) * (strlen(commands[i + 1]) + 1));
+        strcpy(commandStructs[k].fileSource, commands[i + 1]);
         i++;
 
       }else if(strcmp(commands[i], "&") == 0){
-        commandStructs[k]->isBackground = TRUE;
+        commandStructs[k].isBackground = true;
 
       }else{
-        args[j] = malloc(sizeof(char) * strlen(commands[i]) + 1);
-        strcpy(args[j], commands[i]);
+        //char **tempArgs;
+        //tempArgs = realloc(commandStructs[k].args, sizeof(char *) * (j+1));
+        commandStructs[k].args = malloc(sizeof(char *) * BUFFERSIZE);
+        commandStructs[k].args[j] = malloc(sizeof(char) * (strlen(commands[i]) + 1));
+        strcpy(commandStructs[k].args[j], commands[i]/*, sizeof(char) * (strlen(commands[i]) + 1)*/);
+
+        printf("Added %s to args of struct %d\n", commandStructs[k].args[j], k);
         j++;
       }
     }
   }
-
+////////////////////////////////////////////////////////////////////////////////////
   void freeStructs(Command * structs){
-
+    printf("freeing structs\n");
+    int i;
+    int j;
+    for(i = 0; structs[i].args != NULL; i++){
+      free(structs[i].fileSource);
+      free(structs[i].fileDest);
+      for(j = 0; structs[i].args[j]; j++){
+        free(structs[i].args[j]);
+      }
+      free(structs);
+    }
   }
