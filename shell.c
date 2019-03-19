@@ -9,11 +9,13 @@
 
 #define BUFFERSIZE 64
 
-enum inOut{IN, OUT, BOTH, NEITHER}
+enum inOut{IN, OUT, BOTH, NEITHER};
+enum pipeState{READ, WRITE};
+//improves code readability
 
 typedef struct command_struct
 {
-  char **commands;
+  char **args;
   int pipeIn[2];
   int pipeOut[2];
   char *fileDest;
@@ -24,7 +26,7 @@ typedef struct command_struct
 void shellLoop();
 char *readString();
 char **commandLineParser(char *string);
-void runCommand(char **commands);
+void runCommand(Command command);
 void fileRedirect(char *file, int inOut);
 Command *makeStructs(char **commands);
 
@@ -102,23 +104,58 @@ char **commandLineParser(char *string)
   return tokens;
 }
 
-void runCommand(char **commands)
+void runCommand(Command command)
 {
+  int pid, w, status;
+
   if( (pid = fork()) < 0)
   {
     perror("Forking error\n");
   }
   else if(pid == 0)
   { //CHILD PROCESS
+    if(command.fileDest != NULL)
+    {
+      fileRedirect(command.fileDest, OUT);
+    }
+    else if(command.fileSource != NULL)
+    {
+      fileRedirect(command.fileSource, IN);
+    }
+    else if(command.pipeIn != NULL)
+    {
+      close(command.pipeIn[WRITE]);
+      dup2(command.pipeIn[READ], STDIN_FILENO);
 
+      close(command.pipeIn[READ]);
+    }
+    else if(command.pipeOut != NULL)
+    {
+      close(command.pipeOut[READ]);
+      dup2(command.pipeOut[WRITE], STDOUT_FILENO);
+
+      close(command.pipeOut[WRITE]);
+    }
+
+    if(execvp(command.args[0], command.args) == -1)
+    {
+      perror("execvp Error\n");
+    }
   }
   else
   { //PARENT PROCESS
+    do{ //WAIT CODE TAKEN FROM http://www.tutorialspoint.com/unix_system_calls/waitpid.htm
+      w = waitpid(pid, &status, WUNTRACED | WCONTINUED);
+      if (w == -1)
+      {
+        perror("waitpid");
+      }
 
+    } while(!WIFEXITED(status) && !WIFSIGNALED(status));
   }
 }
 
-void fileRedirect(char *file, bool inOut)
+void fileRedirect(char *file, int inOut)
 {
   if(inOut == IN)
   {
@@ -132,5 +169,5 @@ void fileRedirect(char *file, bool inOut)
 
 Command *makeStructs(char **commands)
 {
-  
+
 }
