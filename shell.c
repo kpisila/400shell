@@ -35,7 +35,7 @@
   char *readString();
   char **commandLineParser(char *string);
   void freeCommands(char ** cmds);
-  void runCommand(Command command); ///////What about running all commands?
+  void runCommand(Command *command);
   void fileRedirect(char *file, int inOut);
   Command *makeStructs(char **commands);
   void freeStructs(Command *structs);
@@ -62,7 +62,7 @@
       printf("~ ");
       string = readString();
       //printf("string read: %s\n", string);
-      if(strcmp(string, "exit") == 0)
+      if(strcmp(string, "exit") == 0 || strcmp(string, "") == 0)
       {
         exit(0);
       }
@@ -70,8 +70,8 @@
       commands = commandLineParser(string);
       //printf("parser done\n");
       free(string);
-      int i;
-      /*for(i = 0; commands[i] != NULL; i++)
+      /*int i;
+      for(i = 0; commands[i] != NULL; i++)
       {
         printf("%s\n", commands[i]);
       }*/
@@ -88,7 +88,8 @@
 
       Command *temp = headCommand;
       while(temp != NULL){
-        printf("args[0]: %s\n", temp->args[0]);
+        //printf("args[0]: %s\n\tpipeIn[0]: %d\n\tpipeOut[0]: %d\n", temp->args[0], temp->pipeIn[0], temp->pipeOut[0]);
+        runCommand(temp);
         temp = temp->nextCommand;
       }
 ////////////////////////////////////////////////////////////////////////////
@@ -154,7 +155,7 @@ void freeCommands(char ** cmds){
 }
 ///////////////////////////////////////////////////////////////////////////
 
-  void runCommand(Command command)
+  void runCommand(Command *command)
   {
     int pid, w, status;
 
@@ -164,30 +165,36 @@ void freeCommands(char ** cmds){
     }
     else if(pid == 0)
     { //CHILD PROCESS
-      if(command.fileDest != NULL)
+      if(command->fileDest != NULL)
       {
-        fileRedirect(command.fileDest, OUT);
+        fileRedirect(command->fileDest, OUT);
       }
-      else if(command.fileSource != NULL)
+      else if(command->fileSource != NULL)
       {
-        fileRedirect(command.fileSource, IN);
+        fileRedirect(command->fileSource, IN);
       }
-      else if(command.pipeIn != NULL)
+      else if(command->pipeIn[0] != 0)
       {
-        close(command.pipeIn[WRITE]);
-        dup2(command.pipeIn[READ], STDIN_FILENO);
+        close(command->pipeIn[WRITE]);
+        dup2(command->pipeIn[READ], STDIN_FILENO);
 
-        close(command.pipeIn[READ]);
+        close(command->pipeIn[READ]);
       }
-      else if(command.pipeOut != NULL)
+      else if(command->pipeOut[0] != 0)
       {
-        close(command.pipeOut[READ]);
-        dup2(command.pipeOut[WRITE], STDOUT_FILENO);
+        close(command->pipeOut[READ]);
+        dup2(command->pipeOut[WRITE], STDOUT_FILENO);
 
-        close(command.pipeOut[WRITE]);
+        close(command->pipeOut[WRITE]);
+      }
+      else if(command->isBackground == true)
+      {
+        //Code for background execution goes here
       }
 
-      if(execvp(command.args[0], command.args) == -1)
+      //printf("About to execvp command.\n");
+
+      if(execvp(command->args[0], command->args) == -1)
       {
         perror("execvp Error\n");
       }
@@ -195,6 +202,7 @@ void freeCommands(char ** cmds){
     else
     { //PARENT PROCESS
       do{ //WAIT CODE TAKEN FROM http://www.tutorialspoint.com/unix_system_calls/waitpid.htm
+        //printf("Waiting in parent\n");
         w = waitpid(pid, &status, WUNTRACED | WCONTINUED);
         if (w == -1)
         {
