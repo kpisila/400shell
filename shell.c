@@ -88,7 +88,7 @@
 
       Command *temp = headCommand;
       while(temp != NULL){
-        //printf("args[0]: %s\n\tpipeIn[0]: %d\n\tpipeOut[0]: %d\n", temp->args[0], temp->pipeIn[0], temp->pipeOut[0]);
+        printf("args[0]: %s\n\tpipeIn[0]: %d\n\tpipeOut[0]: %d\n", temp->args[0], temp->pipeIn[0], temp->pipeOut[0]);
         runCommand(temp);
         temp = temp->nextCommand;
       }
@@ -169,30 +169,31 @@ void freeCommands(char ** cmds){
       {
         fileRedirect(command->fileDest, OUT);
       }
-      else if(command->fileSource != NULL)
+      if(command->fileSource != NULL)
       {
         fileRedirect(command->fileSource, IN);
       }
-      else if(command->pipeIn[0] != 0)
+      if(command->pipeIn[0] != 0)
       {
         close(command->pipeIn[WRITE]);
         dup2(command->pipeIn[READ], STDIN_FILENO);
 
         close(command->pipeIn[READ]);
       }
-      else if(command->pipeOut[0] != 0)
+      if(command->pipeOut[0] != 0)
       {
+        printf("About to redirect output of %s\n", command->args[0]);
         close(command->pipeOut[READ]);
         dup2(command->pipeOut[WRITE], STDOUT_FILENO);
 
         close(command->pipeOut[WRITE]);
       }
-      else if(command->isBackground == true)
+      if(command->isBackground == true)
       {
         //Code for background execution goes here
       }
 
-      //printf("About to execvp command.\n");
+      //printf("About to execvp %s.\n", command->args[0]);
 
       if(execvp(command->args[0], command->args) == -1)
       {
@@ -323,4 +324,4 @@ void freeCommands(char ** cmds){
       free(head);
       head = temp;
     }while(temp != NULL);
-  }
+}
