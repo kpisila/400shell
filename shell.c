@@ -38,6 +38,7 @@
   void runCommand(Command *command);
   void fileRedirect(char *file, int inOut);
   Command *makeStructs(char **commands);
+  Command * initStruct();
   void freeStructs(Command *structs);
 
 ///////////////////////////////////////////////////////////////////////////
@@ -88,7 +89,7 @@
 
       Command *temp = headCommand;
       while(temp != NULL){
-        printf("args[0]: %s\n\tpipeIn[0]: %d\n\tpipeOut[0]: %d\n", temp->args[0], temp->pipeIn[0], temp->pipeOut[0]);
+        //printf("args[0]: %s\n\tpipeIn[0]: %d\n\tpipeOut[0]: %d\n", temp->args[0], temp->pipeIn[0], temp->pipeOut[0]);
         runCommand(temp);
         temp = temp->nextCommand;
       }
@@ -169,31 +170,30 @@ void freeCommands(char ** cmds){
       {
         fileRedirect(command->fileDest, OUT);
       }
-      if(command->fileSource != NULL)
+      else if(command->fileSource != NULL)
       {
         fileRedirect(command->fileSource, IN);
       }
-      if(command->pipeIn[0] != 0)
+      else if(command->pipeIn[0] != 0)
       {
         close(command->pipeIn[WRITE]);
         dup2(command->pipeIn[READ], STDIN_FILENO);
 
         close(command->pipeIn[READ]);
       }
-      if(command->pipeOut[0] != 0)
+      else if(command->pipeOut[0] != 0)
       {
-        printf("About to redirect output of %s\n", command->args[0]);
         close(command->pipeOut[READ]);
         dup2(command->pipeOut[WRITE], STDOUT_FILENO);
 
         close(command->pipeOut[WRITE]);
       }
-      if(command->isBackground == true)
+      else if(command->isBackground == true)
       {
         //Code for background execution goes here
       }
 
-      //printf("About to execvp %s.\n", command->args[0]);
+      //printf("About to execvp command.\n");
 
       if(execvp(command->args[0], command->args) == -1)
       {
@@ -229,26 +229,16 @@ void freeCommands(char ** cmds){
   }
 
 ///////////////////////////////////////////////////////////////////////////
-/*  typedef struct command_struct
-  {
-    char **args;
-    int pipeIn[2];
-    int pipeOut[2];
-    char *fileDest;
-    char *fileSource;
-    bool isBackground;
-    //if any of these are NULL, they are unused
-  } Command;*/
+
   Command *makeStructs(char **commands)
   {
     //printf("begin making structs\n");
     int i;    //to iterate through commands array
     //int j = 0;//number of strings in args array
     int k = 0;//number of structs in commandStructs array
-    Command *head = malloc(sizeof(Command));
+    Command *head = initStruct();
     Command *current = head;
     Command *temp;
-    current->argc = 0;
 
     for(i = 0; 1 ; i++){
       //printf("struct loop: %d working on %s\n", i, commands[i]);
@@ -256,16 +246,15 @@ void freeCommands(char ** cmds){
       if(!commands[i]){
         current->args = realloc(current->args, sizeof(char *) * (current->argc + 2));
         current->args[current->argc] = NULL;
-        printf("Hit exit case\n");
+        //printf("Hit exit case\n");
         current->nextCommand = NULL;
         return head;
 
       }else if(strcmp(commands[i], "|") == 0){
         current->args = realloc(current->args, sizeof(char *) * (current->argc + 2));
         current->args[current->argc] = NULL;
-        temp = malloc(sizeof(Command));
+        temp = initStruct();
         current->nextCommand = temp;
-        temp->argc = 0;
         //printf("current args[0]: %s\n", current->args[0] );//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         if(pipe(current->pipeOut) < 0){
           printf("pipe failed\n");
@@ -306,6 +295,33 @@ void freeCommands(char ** cmds){
       }
     }
   }
+////////////////////////////////////////////////////////////////////////////////////
+/*  typedef struct command_struct
+  {
+    char **args;
+    int pipeIn[2];
+    int pipeOut[2];
+    char *fileDest;
+    char *fileSource;
+    bool isBackground;
+    //if any of these are NULL, they are unused
+  } Command;*/
+Command * initStruct(){
+  Command *cmnd = malloc(sizeof(Command));
+  cmnd->args = NULL;
+  cmnd->argc = 0;
+  cmnd->pipeIn[0] = -1;
+  cmnd->pipeIn[1] = -1;
+  cmnd->pipeOut[0] = -1;
+  cmnd->pipeOut[1] = -1;
+  cmnd->fileDest = NULL;
+  cmnd->fileSource = NULL;
+  cmnd->isBackground = false;
+  cmnd->nextCommand = NULL;
+
+  return cmnd;
+
+}
 ////////////////////////////////////////////////////////////////////////////////////
   void freeStructs(Command *head){
     //printf("freeing structs\n");
