@@ -35,7 +35,7 @@
   char *readString();
   char **commandLineParser(char *string);
   void freeCommands(char ** cmds);
-  void runCommand(Command *command);
+  int runCommand(Command *command);
   void fileRedirect(char *file, int inOut);
   Command *makeStructs(char **commands);
   Command * initStruct();
@@ -57,6 +57,7 @@
     char *string;
     char **commands;
     Command *headCommand;
+    int pid;
 
     do
     {
@@ -88,11 +89,34 @@
 ///////////// THAT ALL COMMANDS ARE SAVED IN THE LIST        //////////////
 
       Command *temp = headCommand;
-      while(temp != NULL){
-        //printf("args[0]: %s\n\tpipeIn[0]: %d\n\tpipeOut[0]: %d\n", temp->args[0], temp->pipeIn[0], temp->pipeOut[0]);
-        runCommand(temp);
-        temp = temp->nextCommand;
+
+      if( (pid = fork()) < 0)
+      {
+        perror("Forking error\n");
       }
+      else if(pid == 0)
+      { //CHILD PROCESS
+        while(temp->nextCommand != NULL)
+        {
+          printf("args[0]: %s\n\tpipeIn[0]: %d\n\tpipeOut[0]: %d\n", temp->args[0], temp->pipeIn[0], temp->pipeOut[0]);
+          runCommand(temp);
+          close(temp->pipeOut[WRITE]);
+          temp = temp->nextCommand;
+        }
+        if(temp->pipeIn[READ] > 0)
+        {
+          dup2(temp->pipeIn[READ], STDIN_FILENO);
+        }
+        if(execvp(temp->args[0], temp->args) == -1)
+        {
+          perror("Last exec call\n");
+        }
+      }
+      else
+      { //PARENT
+        wait(NULL);
+      }
+
 ////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////
 
@@ -156,63 +180,83 @@ void freeCommands(char ** cmds){
 }
 ///////////////////////////////////////////////////////////////////////////
 
-  void runCommand(Command *command)
+int runCommand(Command *command)
+{
+  int pid, w, status;
+
+  if( (pid = fork()) < 0)
   {
-    int pid, w, status;
-
-    if( (pid = fork()) < 0)
-    {
-      perror("Forking error\n");
-    }
-    else if(pid == 0)
-    { //CHILD PROCESS
-      if(command->fileDest != NULL)
-      {
-        fileRedirect(command->fileDest, OUT);
-      }
-      else if(command->fileSource != NULL)
-      {
-        fileRedirect(command->fileSource, IN);
-      }
-      else if(command->pipeIn[0] != 0)
-      {
-        close(command->pipeIn[WRITE]);
-        dup2(command->pipeIn[READ], STDIN_FILENO);
-
-        close(command->pipeIn[READ]);
-      }
-      else if(command->pipeOut[0] != 0)
-      {
-        close(command->pipeOut[READ]);
-        dup2(command->pipeOut[WRITE], STDOUT_FILENO);
-
-        close(command->pipeOut[WRITE]);
-      }
-      else if(command->isBackground == true)
-      {
-        //Code for background execution goes here
-      }
-
-      //printf("About to execvp command.\n");
-
-      if(execvp(command->args[0], command->args) == -1)
-      {
-        perror("execvp Error\n");
-      }
-    }
-    else
-    { //PARENT PROCESS
-      do{ //WAIT CODE TAKEN FROM http://www.tutorialspoint.com/unix_system_calls/waitpid.htm
-        //printf("Waiting in parent\n");
-        w = waitpid(pid, &status, WUNTRACED | WCONTINUED);
-        if (w == -1)
-        {
-          perror("waitpid");
-        }
-
-      } while(!WIFEXITED(status) && !WIFSIGNALED(status));
-    }
+    perror("Forking error\n");
   }
+  else if(pid == 0)
+  { //CHILD PROCESS
+    if(command->nextCommand == NULL)
+    {
+
+    }
+    if(command->args == NULL)
+    {
+      printf("Error, no arguments!\n");
+    }
+    if(command->fileDest != NULL)
+    {
+      fileRedirect(command->fileDest, OUT);
+    }
+    if(command->fileSource != NULL)
+    {
+      fileRedirect(command->fileSource, IN);
+    }
+    if(command->pipeIn[READ] > 0)
+    {
+      //close(command->pipeIn[WRITE]);
+      if(dup2(command->pipeIn[READ], STDIN_FILENO) == -1)
+      {
+        perror("Dup2 failed\n");
+      }
+
+      if(close(command->pipeIn[READ]) == -1)
+      {
+        perror("Close failed\n");
+      }
+    }
+    if(command->pipeOut[WRITE] > 0)
+    {
+      //printf("About to redirect output of %s\n", command->args[0]);
+      //close(command->pipeOut[READ]);
+      if(dup2(command->pipeOut[WRITE], STDOUT_FILENO) == -1)
+      {
+        perror("Dup2 failed\n");
+      }
+
+      if(close(command->pipeOut[WRITE]) == -1)
+      {
+        perror("Close failed\n");
+      }
+    }
+    if(command->isBackground == true)
+    {
+      //Code for background execution goes here
+    }
+
+    //printf("About to execvp %s.\n", command->args[0]);
+
+    return execvp(command->args[0], command->args);
+
+  }
+  else
+  { //PARENT PROCESS
+    /*do{ //WAIT CODE TAKEN FROM http://www.tutorialspoint.com/unix_system_calls/waitpid.htm
+      //printf("Waiting in parent\n");
+      w = waitpid(pid, &status, WUNTRACED | WCONTINUED);
+      if (w == -1)
+      {
+        perror("waitpid");
+      }
+
+    } while(!WIFEXITED(status) && !WIFSIGNALED(status));*/
+    return pid;
+  }
+}
 
 ///////////////////////////////////////////////////////////////////////////
 
