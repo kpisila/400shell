@@ -14,7 +14,7 @@
 
   #define BUFFERSIZE 64
 
-  enum inOut{IN, OUT, BOTH, NEITHER};
+  enum inOut{IN, OUT};
   enum pipeState{READ, WRITE};
   //improves code readability
   typedef struct command_struct Command;
@@ -38,7 +38,7 @@
   void runCommand(Command *command);
   void fileRedirect(char *file, int inOut);
   Command *makeStructs(char **commands);
-  Command * initStruct();
+  Command *initStruct();
   void freeStructs(Command *structs);
 
 ///////////////////////////////////////////////////////////////////////////
@@ -112,11 +112,11 @@
     char temp[BUFFERSIZE];
     char *string;
 
-    fgets(temp, BUFFERSIZE, stdin);
+    fgets(temp, BUFFERSIZE, stdin); //read from stdin
 
-    temp[strlen(temp) - 1] = '\0';
+    temp[strlen(temp) - 1] = '\0'; //get rid of new line character
 
-    string = malloc( (sizeof(char) * strlen(temp)) + 1);
+    string = malloc( (sizeof(char) * strlen(temp)) + 1); //allocate memory for string
 
     strcpy(string, temp);
 
@@ -131,15 +131,15 @@
     char * temp;
     int i;
 
-    temp = strtok(string, " ");
+    temp = strtok(string, " "); //temp stores the first token
     //printf("token 1: %s\n", temp);
     for(i = 0; temp != NULL; i++)
     {
-      tokens[i] = malloc(sizeof(char) * (strlen(temp) + 1));
+      tokens[i] = malloc(sizeof(char) * (strlen(temp) + 1)); //allocate memory for token
       strcpy(tokens[i], temp);
-      temp = strtok(NULL, " ");
+      temp = strtok(NULL, " "); //get next token
     }
-    tokens[i] = NULL;
+    tokens[i] = NULL; //make sure NULL is the last argv so execvp works properly
     //printf("finished tokenizing\n");
     return tokens;
   }
@@ -167,22 +167,22 @@ void freeCommands(char ** cmds){
     else if(pid == 0)
     { //CHILD PROCESS
       if(command->fileDest != NULL)
-      {
+      { //check if there is a file to send output to
         fileRedirect(command->fileDest, OUT);
       }
       else if(command->fileSource != NULL)
-      {
+      { //check if there is a file to take input from
         fileRedirect(command->fileSource, IN);
       }
       else if(command->pipeIn[0] != 0)
-      {
+      { //check if there is a pipe to take input from
         close(command->pipeIn[WRITE]);
         dup2(command->pipeIn[READ], STDIN_FILENO);
 
         close(command->pipeIn[READ]);
       }
       else if(command->pipeOut[0] != 0)
-      {
+      { //check if there is a pipe to send output to
         close(command->pipeOut[READ]);
         dup2(command->pipeOut[WRITE], STDOUT_FILENO);
 
@@ -202,22 +202,14 @@ void freeCommands(char ** cmds){
     }
     else
     { //PARENT PROCESS
-      do{ //WAIT CODE TAKEN FROM http://www.tutorialspoint.com/unix_system_calls/waitpid.htm
-        //printf("Waiting in parent\n");
-        w = waitpid(pid, &status, WUNTRACED | WCONTINUED);
-        if (w == -1)
-        {
-          perror("waitpid");
-        }
-
-      } while(!WIFEXITED(status) && !WIFSIGNALED(status));
+      wait(NULL); //wait for child to complete
     }
   }
 
 ///////////////////////////////////////////////////////////////////////////
 
   void fileRedirect(char *file, int inOut)
-  {
+  { //perform specified file redirection
     if(inOut == IN)
     {
       freopen(file, "r", stdin);
