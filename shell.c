@@ -14,15 +14,16 @@
 
   #define BUFFERSIZE 64
 
-  enum inOut{IN, OUT, BOTH, NEITHER};
+  enum inOut{IN, OUT};
   enum pipeState{READ, WRITE};
   //improves code readability
-
   typedef struct command_struct Command;
   struct command_struct
   {
     char **args;
     short int argc;
+    int pipeIn[2];
+    int pipeOut[2];
     char *fileDest;
     char *fileSource;
     bool isBackground;
@@ -30,21 +31,18 @@
     //if any of these are NULL, they are unused
   };
 
-//////////////////////////////////////////////////////////////////////////
-
   void shellLoop();
   char *readString();
   char **commandLineParser(char *string);
   void freeCommands(char ** cmds);
-  int runCommand(Command *command);
+  void runCommand(Command *command);
   void fileRedirect(char *file, int inOut);
   Command *makeStructs(char **commands);
-  Command * initStruct();
+  Command *initStruct();
   void freeStructs(Command *structs);
 
-//////////////////////////// MAIN /////////////////////////////////////////
-//-----------------------------------------------------------------------//
-
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
   int main()
   {
     shellLoop();
@@ -54,150 +52,71 @@
 
 //----------------------------------------------------------------------//
 ///////////////////////////////////////////////////////////////////////////
-
   void shellLoop()
   {
     char *string;
     char **commands;
     Command *headCommand;
-    int pid;
 
     do
     {
       printf("~ ");
       string = readString();
+      //printf("string read: %s\n", string);
       if(strcmp(string, "exit") == 0 || strcmp(string, "") == 0)
       {
         exit(0);
       }
 
       commands = commandLineParser(string);
+      //printf("parser done\n");
       free(string);
+      /*int i;
+      for(i = 0; commands[i] != NULL; i++)
+      {
+        printf("%s\n", commands[i]);
+      }*/
 
       headCommand = makeStructs(commands);
+      //printf("structs made\n");
       freeCommands(commands);
+      //printf("headCommand args[0]: %s\n", headCommand->args[0]);
 
-      Command *command = headCommand;
+///////////// THIS SECTION CAN BE USED TO ITERATE THROUGH    //////////////
+///////////// LINKED LIST OF COMMAND STRUCTS. IT ONLY PRINTS //////////////
+///////////// OUT THE FIRST ARGUMENT RIGHT NOW TO VERYIFY    //////////////
+///////////// THAT ALL COMMANDS ARE SAVED IN THE LIST        //////////////
 
-      //++++++++++++++++++++++ Fork a child to exec commands +++++++++++++++++//
-
-      if( (pid = fork()) < 0){
-        perror("Forking error\n");
-      }else if(pid == 0){
-
-        ////////////EXEC CHILD PROCESS/////////////
-        int pid, status;
-        int pipeOut[2];
-        int pipeIn[2];
-        int notFirst = 0;
-
-            //====== CREATE PIPES ======//
-        if(pipe(pipeOut) < 0){
-          printf("pipeOut failed\n");
-        }
-        if(pipe(pipeIn) < 0){
-          printf("pipeIn failed\n");
-        }
-            //====== CHECK IF FILE SOURCE ======//
-        if(command->fileSource != NULL){
-          fileRedirect(command->fileSource, IN);
-        }
-
-            //====== IF MORE THAT 1 COMMAND ======//
-            //====== EXECUTE ALL COMMANDS   ======//
-        while(command->nextCommand != NULL){
-
-          if( (pid = fork() ) < 0){
-            perror("Forking error\n");
-          }
-          else if(pid == 0){
-            /////////// LOOP CHILD PROCESS /////////////
-            printf("in child\n");
-
-            if(command->args == NULL){
-              printf("Error, no arguments!\n");
-            }
-            //================== PIPING ======================//
-                    //////////// Redirect stdin //////////
-            if(notFirst){
-              printf("this is not the first command\n");
-              close(pipeIn[WRITE]);
-              if(dup2(pipeIn[READ], STDIN_FILENO) == -1){
-                perror("Dup2 failed\n");
-              }
-              if(close(pipeIn[READ]) == -1){
-                perror("Close failed\n");
-              }
-            }
-                    /////// Redirect stdout ////////////
-            if(command->nextCommand != NULL){
-              printf("About to redirect output of %s\n", command->args[0]);
-
-// ERROR OCCURS ERROR OCCURS ERROR OCCURS ERROR OCCURS ERROR OCCURS ERROR OCCURS //
-
-              close(pipeOut[READ]);
-              if(dup2(pipeOut[WRITE], STDOUT_FILENO) == -1){
-                perror("Dup2 failed\n");
-              }
-              if(close(pipeOut[WRITE]) == -1){
-                perror("Close failed\n");
-              }
-            }
-            //===================================================//
-
-            if(command->isBackground == true){
-              //Code for background execution goes here
-            }
-
-            execvp(command->args[0], command->args);
-          }else{
-            ////////// LOOP PARENT ///////////////
-
-            close(pipeIn[WRITE]);
-            close(pipeIn[READ]);
-
-            close(pipeOut[WRITE]);
-            close(pipeOut[READ]);
-
-            waitpid(pid, &status, 0);
-            command = command->nextCommand;
-          }
-          notFirst = 1; //TO DETERMINE IF STDIN NEEDS TO BE REDIRECTED
-        }
-
-        ////////////// Outside While Loop /////////////////
-        if(command->fileDest != NULL){
-          fileRedirect(command->fileDest, OUT);
-        }
-        if(pipeOut[READ] > 0)
-        {
-          dup2(pipeIn[READ], STDIN_FILENO);
-        }
-        if(execvp(command->args[0], command->args) == -1)
-        {
-          perror("Last exec call\n");
-        }
-      }else{
-        /////////// PARENT /////////////
-        wait(NULL);
+      Command *temp = headCommand;
+      while(temp != NULL){
+        //printf("args[0]: %s\n\tpipeIn[0]: %d\n\tpipeOut[0]: %d\n", temp->args[0], temp->pipeIn[0], temp->pipeOut[0]);
+        runCommand(temp);
+        temp = temp->nextCommand;
       }
+////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
 
       freeStructs(headCommand);
+      //printf("structs freed\n");
     } while(1);
+
+
+    free(commands);
   }
 
 ///////////////////////////////////////////////////////////////////////////
+//----------------------------------------------------------------------//
 
   char *readString()
   {
     char temp[BUFFERSIZE];
     char *string;
 
-    fgets(temp, BUFFERSIZE, stdin);
+    fgets(temp, BUFFERSIZE, stdin); //read from stdin
 
-    temp[strlen(temp) - 1] = '\0';
+    temp[strlen(temp) - 1] = '\0'; //get rid of new line character
 
-    string = malloc( (sizeof(char) * strlen(temp)) + 1);
+    string = malloc( (sizeof(char) * strlen(temp)) + 1); //allocate memory for string
 
     strcpy(string, temp);
 
@@ -212,15 +131,16 @@
     char * temp;
     int i;
 
-    temp = strtok(string, " ");
+    temp = strtok(string, " "); //temp stores the first token
+    //printf("token 1: %s\n", temp);
     for(i = 0; temp != NULL; i++)
     {
-      tokens[i] = malloc(sizeof(char) * (strlen(temp) + 1));
+      tokens[i] = malloc(sizeof(char) * (strlen(temp) + 1)); //allocate memory for token
       strcpy(tokens[i], temp);
-      temp = strtok(NULL, " ");
+      temp = strtok(NULL, " "); //get next token
     }
-    tokens[i] = NULL;
-
+    tokens[i] = NULL; //make sure NULL is the last argv so execvp works properly
+    //printf("finished tokenizing\n");
     return tokens;
   }
 
@@ -234,30 +154,91 @@ void freeCommands(char ** cmds){
   }
   free(cmds);
 }
+///////////////////////////////////////////////////////////////////////////
+
+  void runCommand(Command *command)
+  {
+    int pid, w, status;
+
+    if( (pid = fork()) < 0)
+    {
+      perror("Forking error\n");
+    }
+    else if(pid == 0)
+    { //CHILD PROCESS
+      if(command->fileDest != NULL)
+      { //check if there is a file to send output to
+        fileRedirect(command->fileDest, OUT);
+      }
+      else if(command->fileSource != NULL)
+      { //check if there is a file to take input from
+        fileRedirect(command->fileSource, IN);
+      }
+      else if(command->pipeIn[0] != 0)
+      { //check if there is a pipe to take input from
+        close(command->pipeIn[WRITE]);
+        dup2(command->pipeIn[READ], STDIN_FILENO);
+
+        close(command->pipeIn[READ]);
+      }
+      else if(command->pipeOut[0] != 0)
+      { //check if there is a pipe to send output to
+        close(command->pipeOut[READ]);
+        dup2(command->pipeOut[WRITE], STDOUT_FILENO);
+
+        close(command->pipeOut[WRITE]);
+      }
+      else if(command->isBackground == true)
+      {
+        //Code for background execution goes here
+      }
+
+      //printf("About to execvp command.\n");
+
+      if(execvp(command->args[0], command->args) == -1)
+      {
+        perror("execvp Error\n");
+      }
+    }
+    else
+    { //PARENT PROCESS
+      wait(NULL); //wait for child to complete
+    }
+  }
 
 ///////////////////////////////////////////////////////////////////////////
 
-  void fileRedirect(char *file, int inOut){
-    if(inOut == IN){
+  void fileRedirect(char *file, int inOut)
+  { //perform specified file redirection
+    if(inOut == IN)
+    {
       freopen(file, "r", stdin);
     }
-    else{
+    else
+    {
       freopen(file, "w", stdout);
     }
   }
 
 ///////////////////////////////////////////////////////////////////////////
 
-  Command *makeStructs(char **commands){
+  Command *makeStructs(char **commands)
+  {
+    //printf("begin making structs\n");
+    int i;    //to iterate through commands array
+    //int j = 0;//number of strings in args array
+    int k = 0;//number of structs in commandStructs array
     Command *head = initStruct();
     Command *current = head;
     Command *temp;
 
-    int i;
     for(i = 0; 1 ; i++){
+      //printf("struct loop: %d working on %s\n", i, commands[i]);
+      //if(current->args[0]){printf("current args[0]: %s\n", current->args[0] );}
       if(!commands[i]){
         current->args = realloc(current->args, sizeof(char *) * (current->argc + 2));
         current->args[current->argc] = NULL;
+        //printf("Hit exit case\n");
         current->nextCommand = NULL;
         return head;
 
@@ -266,7 +247,14 @@ void freeCommands(char ** cmds){
         current->args[current->argc] = NULL;
         temp = initStruct();
         current->nextCommand = temp;
-        current = current->nextCommand;
+        //printf("current args[0]: %s\n", current->args[0] );//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        if(pipe(current->pipeOut) < 0){
+          printf("pipe failed\n");
+        }else{
+          memcpy(current->nextCommand->pipeIn, current->pipeOut, 2 * sizeof(int));
+        }
+          current = current->nextCommand;
+          k++;
 
       }else if(strcmp(commands[i], ">") == 0){
         current->args = realloc(current->args, sizeof(char *) * (current->argc + 2));
@@ -288,37 +276,56 @@ void freeCommands(char ** cmds){
         current->isBackground = true;
 
       }else{
+        //char **tempArgs;
+        //tempArgs = realloc(commandStructs[k].args, sizeof(char *) * (j+1));
         current->args = realloc(current->args, sizeof(char *) * (current->argc + 1));
         current->args[current->argc] = malloc(sizeof(char) * (strlen(commands[i]) + 1));
         strcpy(current->args[current->argc], commands[i]);
+
+        //printf("Added %s to args of struct %d\n", current->args[current->argc], k);
         current->argc++;
       }
     }
   }
-
 ////////////////////////////////////////////////////////////////////////////////////
-
+/*  typedef struct command_struct
+  {
+    char **args;
+    int pipeIn[2];
+    int pipeOut[2];
+    char *fileDest;
+    char *fileSource;
+    bool isBackground;
+    //if any of these are NULL, they are unused
+  } Command;*/
 Command * initStruct(){
   Command *cmnd = malloc(sizeof(Command));
   cmnd->args = NULL;
   cmnd->argc = 0;
+  cmnd->pipeIn[0] = -1;
+  cmnd->pipeIn[1] = -1;
+  cmnd->pipeOut[0] = -1;
+  cmnd->pipeOut[1] = -1;
   cmnd->fileDest = NULL;
   cmnd->fileSource = NULL;
   cmnd->isBackground = false;
   cmnd->nextCommand = NULL;
 
   return cmnd;
+
 }
-
 ////////////////////////////////////////////////////////////////////////////////////
-
   void freeStructs(Command *head){
+    //printf("freeing structs\n");
     int i;
     Command *temp;
     do{
+      //printf("free source\n");
       free(head->fileSource);
+      //printf("free dest\n");
       free(head->fileDest);
       for(i = 0; head->args[i] != NULL; i++){
+        //printf("freeing args %d\n", i);
         free(head->args[i]);
       }
       temp = head->nextCommand;
