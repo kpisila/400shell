@@ -36,6 +36,7 @@
   char **commandLineParser(char *string);
   void freeCommands(char ** cmds);
   void runCommand(Command *command);
+  void printCommand(Command * cmd);
   void fileRedirect(char *file, int inOut);
   Command *makeStructs(char **commands);
   Command *initStruct();
@@ -78,6 +79,7 @@
       }*/
 
       headCommand = makeStructs(commands);
+
       //printf("structs made\n");
       freeCommands(commands);
       //printf("headCommand args[0]: %s\n", headCommand->args[0]);
@@ -87,9 +89,13 @@
 ///////////// OUT THE FIRST ARGUMENT RIGHT NOW TO VERYIFY    //////////////
 ///////////// THAT ALL COMMANDS ARE SAVED IN THE LIST        //////////////
 
+
+
+      //printf("args[0]: %s\n\tpipeIn[0]: %d\n\tpipeOut[0]: %d\n", temp->args[0], temp->pipeIn[0], temp->pipeOut[0]);
       Command *temp = headCommand;
       while(temp != NULL){
         //printf("args[0]: %s\n\tpipeIn[0]: %d\n\tpipeOut[0]: %d\n", temp->args[0], temp->pipeIn[0], temp->pipeOut[0]);
+        printCommand(temp);
         runCommand(temp);
         temp = temp->nextCommand;
       }
@@ -170,25 +176,25 @@ void freeCommands(char ** cmds){
       { //check if there is a file to send output to
         fileRedirect(command->fileDest, OUT);
       }
-      else if(command->fileSource != NULL)
+      if(command->fileSource != NULL)
       { //check if there is a file to take input from
         fileRedirect(command->fileSource, IN);
       }
-      else if(command->pipeIn[0] != 0)
+      if(command->pipeIn[0] != -1)
       { //check if there is a pipe to take input from
         close(command->pipeIn[WRITE]);
         dup2(command->pipeIn[READ], STDIN_FILENO);
 
         close(command->pipeIn[READ]);
       }
-      else if(command->pipeOut[0] != 0)
+      if(command->pipeOut[0] != -1)
       { //check if there is a pipe to send output to
         close(command->pipeOut[READ]);
         dup2(command->pipeOut[WRITE], STDOUT_FILENO);
 
         close(command->pipeOut[WRITE]);
       }
-      else if(command->isBackground == true)
+      if(command->isBackground == true)
       {
         //Code for background execution goes here
       }
@@ -202,6 +208,16 @@ void freeCommands(char ** cmds){
     }
     else
     { //PARENT PROCESS
+      if(command->pipeIn[0] != -1)
+      { //check if there is a pipe to take input from
+        close(command->pipeIn[WRITE]);
+        close(command->pipeIn[READ]);
+      }
+      if(command->pipeOut[0] != -1)
+      { //check if there is a pipe to send output to
+        close(command->pipeOut[READ]);
+        close(command->pipeOut[WRITE]);
+      }
       wait(NULL); //wait for child to complete
     }
   }
@@ -250,8 +266,12 @@ void freeCommands(char ** cmds){
         //printf("current args[0]: %s\n", current->args[0] );//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         if(pipe(current->pipeOut) < 0){
           printf("pipe failed\n");
+        }else if(pipe(current->nextCommand->pipeIn) < 0){
+          printf("pipe failed\n");
         }else{
-          memcpy(current->nextCommand->pipeIn, current->pipeOut, 2 * sizeof(int));
+          dup2(current->pipeOut[0], current->nextCommand->pipeIn[0]);
+          dup2(current->pipeOut[1], current->nextCommand->pipeIn[1]);
+          //memcpy(current->nextCommand->pipeIn, current->pipeOut, 2 * sizeof(int));
         }
           current = current->nextCommand;
           k++;
@@ -332,4 +352,19 @@ Command * initStruct(){
       free(head);
       head = temp;
     }while(temp != NULL);
+}
+
+void printCommand(Command * cmd){
+  printf("pipeIn[0]: %d\n", cmd->pipeIn[0]);
+  printf("pipeIn[1]: %d\n", cmd->pipeIn[1]);
+  printf("pipeOut[0]: %d\n", cmd->pipeOut[0]);
+  printf("pipeOut[1]: %d\n", cmd->pipeOut[1]);
+
+  printf("File Source: %s\n", cmd->fileSource);
+  printf("File Source: %s\n", cmd->fileDest);
+  int i;
+
+    for(i = 0; cmd->args[i] != NULL; i++){
+      printf("Args %d: %s\n", i, cmd->args[i]);
+    }
 }
