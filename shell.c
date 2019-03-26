@@ -196,6 +196,7 @@ void freeCommands(char ** cmds){
       }
       if(command->isBackground == true)
       {
+
         //Code for background execution goes here
       }
 
@@ -218,7 +219,11 @@ void freeCommands(char ** cmds){
         close(command->pipeOut[READ]);
         close(command->pipeOut[WRITE]);
       }
-      wait(NULL); //wait for child to complete
+      if(command->isBackground != true){
+        wait(NULL); //wait for child to complete if it
+                    //is not a background process
+      }
+      return;
     }
   }
 
