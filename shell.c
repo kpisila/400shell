@@ -186,7 +186,7 @@ void runCommand(Command *command)
     if(command->isBackground == true)
     {
       setpgid(0, 0);
-      //Code for background execution goes here
+      //move process to a new process group in the background
     }
 
     //printf("About to execvp command.\n");
