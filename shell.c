@@ -54,10 +54,10 @@ void shellLoop()
   char *string;
   char **commands;
   Command *headCommand;
-
+  printf("~ ");
   do
   {
-    printf("~ ");
+    
     string = readString();
 
     //printf("string read: %s\n", string);
@@ -91,9 +91,8 @@ void shellLoop()
     }
 
     freeStructs(headCommand);
+    printf("~ ");
   } while(1);
-
-  free(commands);
 }
 ////////////////////////////////////////////////////////////////////////////////////
 char *readString()
